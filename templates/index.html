@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Cow Identification</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f0f2f5; color: #333; text-align: center; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .buttons { margin-bottom: 20px; }
+        button { font-size: 16px; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; }
+        #startBtn { background-color: #28a745; }
+        #startBtn:hover { background-color: #218838; }
+        #stopBtn { background-color: #dc3545; display: none; }
+        #stopBtn:hover { background-color: #c82333; }
+
+        /* The raw webcam feed is hidden. We only show the AI-processed feed. */
+        #rawVideo { display: none; }
+        #processedVideo { width: 100%; max-width: 640px; border-radius: 8px; border: 3px solid #333; background-color: #000; min-height: 480px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📸 Live Cow Muzzle AI Scanner</h2>
+    <p>Point your camera at the cow's muzzle to identify it in real-time.</p>
+
+    <div class="buttons">
+        <button id="startBtn">Start Live Camera</button>
+        <button id="stopBtn">Stop Camera</button>
+    </div>
+
+    <!-- Hidden Elements for Capturing -->
+    <video id="rawVideo" autoplay playsinline></video>
+    <canvas id="canvasElement" style="display:none;"></canvas>
+
+    <!-- The Screen that displays the AI outputs -->
+    <img id="processedVideo" src="" alt="Live feed will appear here...">
+</div>
+
+<script>
+    const rawVideo = document.getElementById('rawVideo');
+    const canvas = document.getElementById('canvasElement');
+    const ctx = canvas.getContext('2d');
+    const processedVideo = document.getElementById('processedVideo');
+
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+
+    let streaming = false;
+
+    // START CAMERA
+    startBtn.addEventListener('click', async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            rawVideo.srcObject = stream;
+
+            rawVideo.onloadedmetadata = () => {
+                canvas.width = rawVideo.videoWidth;
+                canvas.height = rawVideo.videoHeight;
+                streaming = true;
+
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+
+                // Start the continuous processing loop
+                processLiveFrame();
+            };
+        } catch (error) {
+            alert("Camera access denied or unavailable. Please ensure you are using 'http://localhost:5000' or HTTPS.");
+            console.error(error);
+        }
+    });
+
+    // STOP CAMERA
+    stopBtn.addEventListener('click', () => {
+        streaming = false;
+        const stream = rawVideo.srcObject;
+        if (stream) {
+            const tracks = stream.getTracks();
+            tracks.forEach(track => track.stop());
+        }
+        rawVideo.srcObject = null;
+        processedVideo.src = ""; // Clear screen
+
+        startBtn.style.display = 'inline-block';
+        stopBtn.style.display = 'none';
+    });
+
+    // INFINITE LOOP: Send Frame -> Get AI Result -> Send Next Frame
+    async function processLiveFrame() {
+        if (!streaming) return;
+
+        // 1. Draw current camera frame to the hidden canvas
+        ctx.drawImage(rawVideo, 0, 0, canvas.width, canvas.height);
+
+        // 2. Convert to Base64 (0.7 quality for speed)
+        const frameData = canvas.toDataURL('image/jpeg', 0.7);
+
+        try {
+            // 3. Send to Flask Backend
+            const response = await fetch('/process_live_frame', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: frameData })
+            });
+
+            const result = await response.json();
+
+            // 4. Display the returned image with Bounding Boxes
+            if (result.image) {
+                processedVideo.src = result.image;
+            }
+        } catch (err) {
+            console.error("Connection error:", err);
+        }
+
+        // 5. Ask the browser to run this again for the next frame immediately
+        requestAnimationFrame(processLiveFrame);
+    }
+</script>
+
+</body>
+</html>
