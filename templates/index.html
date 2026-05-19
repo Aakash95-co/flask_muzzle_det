@@ -30,6 +30,8 @@
         <button id="stopBtn">Stop Camera</button>
     </div>
 
+    <h3 id="statusText" style="color: #007bff; min-height: 24px;">Waiting for camera...</h3>
+
     <!-- Hidden Elements for Capturing -->
     <video id="rawVideo" autoplay playsinline></video>
     <canvas id="canvasElement" style="display:none;"></canvas>
@@ -110,6 +112,9 @@
             // 4. Display the returned image with Bounding Boxes
             if (result.image) {
                 processedVideo.src = result.image;
+            }
+            if (result.status) {
+                document.getElementById('statusText').innerText = result.status;
             }
         } catch (err) {
             console.error("Connection error:", err);

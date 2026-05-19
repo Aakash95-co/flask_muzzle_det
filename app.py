@@ -86,6 +86,8 @@ def process_live_frame():
 
         # 3. Detect Muzzles with YOLO
         results = yolo_model(img, verbose=False)
+        
+        detections = []
 
         for box in results[0].boxes:
             conf = float(box.conf)
@@ -106,18 +108,32 @@ def process_live_frame():
                 predicted_name = cow_mapping[best_match_id]
                 label = f"{predicted_name} ({similarity_score * 100:.1f}%)"
                 color = (0, 255, 0) # Green for known
+                detections.append(predicted_name)
             else:
                 label = f"Unknown ({similarity_score * 100:.1f}%)"
                 color = (0, 0, 255) # Red for unknown
+                detections.append("Unknown")
 
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
             cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+
+        # Determine Status text
+        muzzle_count = len(results[0].boxes)
+        if muzzle_count == 0:
+            status = "No muzzle detected"
+        elif len(detections) == 0:
+            status = "Muzzle detected (too blurry or low confidence)"
+        else:
+            status = f"Detected: {', '.join(detections)}"
 
         # 6. Encode the processed image back to Base64 to send to the browser
         _, buffer = cv2.imencode('.jpg', img)
         processed_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        return jsonify({'image': 'data:image/jpeg;base64,' + processed_base64})
+        return jsonify({
+            'image': 'data:image/jpeg;base64,' + processed_base64,
+            'status': status
+        })
 
     except Exception as e:
         print(f"Frame Error: {e}")
