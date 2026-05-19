@@ -101,13 +101,17 @@ def process_live_frame():
             # 4. Identify the Cropped Muzzle
             best_match_id, similarity_score = identify_crop(crop)
 
-            # 5. Draw Bounding Box if Confident
+            # 5. Draw Bounding Box (Known or Unknown)
             if similarity_score > SIMILARITY_THRESHOLD:
                 predicted_name = cow_mapping[best_match_id]
                 label = f"{predicted_name} ({similarity_score * 100:.1f}%)"
+                color = (0, 255, 0) # Green for known
+            else:
+                label = f"Unknown ({similarity_score * 100:.1f}%)"
+                color = (0, 0, 255) # Red for unknown
 
-                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(img, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
 
         # 6. Encode the processed image back to Base64 to send to the browser
         _, buffer = cv2.imencode('.jpg', img)
